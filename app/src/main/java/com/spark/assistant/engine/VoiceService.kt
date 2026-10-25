@@ -264,8 +264,21 @@ class VoiceService : Service() {
             // Button-triggered window: no wake gate at all. stripWake is still
             // applied so a habitual "hey spark ..." prefix never leaks into commands.
             // 1) Engine path: audio -> tool calls in one call.
+            // Speech locked to the user's language (default English) instead
+            // of auto-detect; user mapping keywords bias the Whistle decode
+            // toward the app names we actually care about.
+            val lang = EngineSettings.currentLanguage(applicationContext).ifEmpty { null }
+            val keywords = mappings
+                .flatMap { listOf(it.keyword, it.label) }
+                .map { it.trim() }
+                .filter { it.length >= 2 }
+                .distinct()
+                .take(30)
+                .joinToString("\n")
+                .ifEmpty { null }
+            Log.d(TAG, "listen: lang=${lang ?: "auto"} keywords=${keywords?.lines()?.size ?: 0}")
             val result = try {
-                NeedleBridge.completeAudio(samples, null)
+                NeedleBridge.completeAudio(samples, lang, keywords)
             } catch (_: Exception) { null }
 
             if (result != null) {

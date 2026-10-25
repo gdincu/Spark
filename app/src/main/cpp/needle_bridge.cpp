@@ -84,21 +84,25 @@ Java_com_spark_assistant_engine_NeedleBridge_nativeLoad(JNIEnv *env, jobject /*t
 
 JNIEXPORT jbyteArray JNICALL
 Java_com_spark_assistant_engine_NeedleBridge_nativeCompleteAudio(JNIEnv *env, jobject /*thiz*/,
-                                                              jfloatArray samples, jstring language) {
+                                                              jfloatArray samples, jstring language,
+                                                              jstring keywords) {
 #ifdef SPARK_STUB
-    (void)env; (void)samples; (void)language;
+    (void)env; (void)samples; (void)language; (void)keywords;
     return nullptr;
 #else
     jsize len = env->GetArrayLength(samples);
     std::vector<float> pcm((size_t)len);
     env->GetFloatArrayRegion(samples, 0, len, pcm.data());
     const char *lang = language ? env->GetStringUTFChars(language, nullptr) : nullptr;
+    // Newline-separated keyword biasing (see needle_set_audio).
+    const char *kw = keywords ? env->GetStringUTFChars(keywords, nullptr) : nullptr;
 
-    needle_set_audio(lang, nullptr, 0);
+    needle_set_audio(lang, kw, 0);
     std::string out(256 * 1024, '\0');
     int rc = needle_complete(nullptr, pcm.data(), (int)pcm.size(), 512, out.data(),
                              (int)out.size());
     if (language) env->ReleaseStringUTFChars(language, lang);
+    if (keywords) env->ReleaseStringUTFChars(keywords, kw);
     if (rc < 0) return nullptr;
     return toByteArray(env, out.c_str(), (int)out.size());
 #endif
@@ -106,20 +110,23 @@ Java_com_spark_assistant_engine_NeedleBridge_nativeCompleteAudio(JNIEnv *env, jo
 
 JNIEXPORT jbyteArray JNICALL
 Java_com_spark_assistant_engine_NeedleBridge_nativeTranscribe(JNIEnv *env, jobject /*thiz*/,
-                                                           jfloatArray samples, jstring language) {
+                                                           jfloatArray samples, jstring language,
+                                                           jstring keywords) {
 #ifdef SPARK_STUB
-    (void)env; (void)samples; (void)language;
+    (void)env; (void)samples; (void)language; (void)keywords;
     return nullptr;
 #else
     jsize len = env->GetArrayLength(samples);
     std::vector<float> pcm((size_t)len);
     env->GetFloatArrayRegion(samples, 0, len, pcm.data());
     const char *lang = language ? env->GetStringUTFChars(language, nullptr) : nullptr;
+    const char *kw = keywords ? env->GetStringUTFChars(keywords, nullptr) : nullptr;
 
     std::string out(64 * 1024, '\0');
-    int rc = needle_transcribe(pcm.data(), (int)pcm.size(), lang, nullptr, 0, out.data(),
+    int rc = needle_transcribe(pcm.data(), (int)pcm.size(), lang, kw, 0, out.data(),
                                (int)out.size());
     if (language) env->ReleaseStringUTFChars(language, lang);
+    if (keywords) env->ReleaseStringUTFChars(keywords, kw);
     if (rc < 0) return nullptr;
     return toByteArray(env, out.c_str(), (int)out.size());
 #endif

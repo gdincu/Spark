@@ -34,6 +34,9 @@ function-calling only (~45 MB of models), like HeyTune.
   `resume_playback`, `next_track`, `previous_track`, `set_volume`
   (see `app/src/main/assets/spark_tools.json`, the single source of truth
   for the Needle tool schemas).
+- Speech locked to **English by default** (changeable in the app; Whistle
+  also covers de/fr/es/it/nl/pl), and your mapping keywords are fed to
+  Whistle as bias phrases so mapped app names are recognised better.
 - Fully offline after a one-time ~45 MB model download
   (`whistle.cact` + `needle3.cact` from Hugging Face).
 

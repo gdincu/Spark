@@ -59,6 +59,7 @@ import com.spark.assistant.engine.ActionDispatcher
 import com.spark.assistant.engine.ActionMapping
 import com.spark.assistant.engine.ActionMappingStore
 import com.spark.assistant.engine.CommandParser
+import com.spark.assistant.engine.EngineSettings
 import com.spark.assistant.engine.ModelManager
 import com.spark.assistant.engine.NeedleBridge
 import com.spark.assistant.engine.VoiceService
@@ -163,6 +164,8 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
     val modelsReady = readiness.first
     val engineOk = readiness.second
     var isDefault by remember { mutableStateOf(false) }
+    var lang by remember { mutableStateOf("en") }
+    var langExpanded by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var testPhrase by remember { mutableStateOf("hey spark play Bohemian Rhapsody") }
     var testResult by remember { mutableStateOf("") }
@@ -179,6 +182,7 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
 
     LaunchedEffect(resumeTick) {
         isDefault = AssistantSetup.isDefaultAssistant(context)
+        lang = EngineSettings.currentLanguage(context)
         Log.d("SparkUI", "onLaunch/resume: roleAvailable=${AssistantSetup.isRoleAvailable(context)} " +
             "isDefault=$isDefault modelsReady=${ModelManager.modelsReady(context)} " +
             "engine=${NeedleBridge.nativeAvailable}")
@@ -211,6 +215,28 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
                     Text("Status", style = MaterialTheme.typography.titleMedium)
                     Text("Assistant role: ${if (isDefault) "Spark is default ✔" else "not default"}")
                     Text("Models: ${if (modelsReady) "downloaded ✔" else "missing"}")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Speech: ")
+                        Box {
+                            OutlinedButton(onClick = { langExpanded = true }) {
+                                Text(EngineSettings.LANGUAGES.firstOrNull { it.first == lang }?.second ?: lang)
+                            }
+                            DropdownMenu(expanded = langExpanded, onDismissRequest = { langExpanded = false }) {
+                                EngineSettings.LANGUAGES.forEach { (code, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(if (code == lang) "✔ $label" else label) },
+                                        onClick = {
+                                            langExpanded = false
+                                            scope.launch {
+                                                EngineSettings.setLanguage(context, code)
+                                                lang = code
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (log.isNotBlank()) Text(log, style = MaterialTheme.typography.bodySmall)
                     if (progress != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

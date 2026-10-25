@@ -30,11 +30,15 @@ object NeedleBridge {
     /** Load whistle.cact + needle3.cact and register toolsJson. */
     external fun nativeLoad(whistlePath: String, needlePath: String, toolsJson: String): Boolean
 
-    /** Engine JSON for audio->tool-calls (function_calls, confidence, audio_*). */
-    external fun nativeCompleteAudio(samples: FloatArray, language: String?): ByteArray?
+    /**
+     * Engine JSON for audio->tool-calls (function_calls, confidence, audio_*).
+     * keywords is newline-separated (see needle_set_audio): user mapping
+     * keywords bias the Whistle decode toward the names we care about.
+     */
+    external fun nativeCompleteAudio(samples: FloatArray, language: String?, keywords: String?): ByteArray?
 
     /** Engine JSON for transcription only ({text, language, ttft_ms, ...}). */
-    external fun nativeTranscribe(samples: FloatArray, language: String?): ByteArray?
+    external fun nativeTranscribe(samples: FloatArray, language: String?, keywords: String?): ByteArray?
 
     fun load(whistlePath: String, needlePath: String, toolsJson: String): Boolean {
         return try {
@@ -45,18 +49,18 @@ object NeedleBridge {
         }
     }
 
-    fun completeAudio(samples: FloatArray, language: String?): VoiceResult? {
+    fun completeAudio(samples: FloatArray, language: String?, keywords: String? = null): VoiceResult? {
         val bytes = try {
-            nativeCompleteAudio(samples, language)
+            nativeCompleteAudio(samples, language, keywords)
         } catch (_: UnsatisfiedLinkError) {
             return null
         } ?: return null
         return parseEngineJson(String(bytes, Charsets.UTF_8))
     }
 
-    fun transcribe(samples: FloatArray, language: String?): VoiceResult? {
+    fun transcribe(samples: FloatArray, language: String?, keywords: String? = null): VoiceResult? {
         val bytes = try {
-            nativeTranscribe(samples, language)
+            nativeTranscribe(samples, language, keywords)
         } catch (_: UnsatisfiedLinkError) {
             return null
         } ?: return null
