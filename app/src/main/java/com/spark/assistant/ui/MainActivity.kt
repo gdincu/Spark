@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -72,6 +73,8 @@ class MainViewModel : ViewModel() {
     val mappings: MutableStateFlow<List<ActionMapping>> = MutableStateFlow(emptyList())
     val downloadProgress: MutableStateFlow<Float?> = MutableStateFlow(null)
     val log: MutableStateFlow<String> = MutableStateFlow("")
+    /** (models on disk, engine loaded). Single source of truth for the 🎤 guard. */
+    val readiness: MutableStateFlow<Pair<Boolean, Boolean>> = MutableStateFlow(false to false)
 
     fun refresh(context: Context) {
         viewModelScope.launch {
@@ -80,6 +83,7 @@ class MainViewModel : ViewModel() {
             val n = ModelManager.needleFile(context)
             log.value = "models: whistle=${mb(w)} needle=${mb(n)} " +
                 "engine=${if (NeedleBridge.nativeAvailable) "loaded" else "not loaded"}"
+            readiness.value = ModelManager.modelsReady(context) to NeedleBridge.nativeAvailable
         }
     }
 
@@ -141,6 +145,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Mic + (API 33+) notification permissions the Status card actions need. */
+private fun neededPerms(): Array<String> = buildList {
+    add(Manifest.permission.RECORD_AUDIO)
+    if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+}.toTypedArray()
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SparkScreen(vm: MainViewModel = viewModel()) {
@@ -149,37 +159,37 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
     val mappings by vm.mappings.collectAsState()
     val progress by vm.downloadProgress.collectAsState()
     val log by vm.log.collectAsState()
+    val readiness by vm.readiness.collectAsState()
+    val modelsReady = readiness.first
+    val engineOk = readiness.second
     var isDefault by remember { mutableStateOf(false) }
-    var modelsReady by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var testPhrase by remember { mutableStateOf("hey spark play Bohemian Rhapsody") }
     var testResult by remember { mutableStateOf("") }
     var askedMic by remember { mutableStateOf(false) }
     val resumeTick = (context as? MainActivity)?.resumedTick ?: 0
 
-    val micPerm = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) vm.ensureEngine(context) else {
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (grants[Manifest.permission.RECORD_AUDIO] == true) vm.ensureEngine(context) else {
             Toast.makeText(context, "Microphone permission required", Toast.LENGTH_LONG).show()
         }
     }
 
     LaunchedEffect(resumeTick) {
         isDefault = AssistantSetup.isDefaultAssistant(context)
-        modelsReady = ModelManager.modelsReady(context)
         Log.d("SparkUI", "onLaunch/resume: roleAvailable=${AssistantSetup.isRoleAvailable(context)} " +
-            "isDefault=$isDefault modelsReady=$modelsReady")
+            "isDefault=$isDefault modelsReady=${ModelManager.modelsReady(context)} " +
+            "engine=${NeedleBridge.nativeAvailable}")
         vm.refresh(context)
         if (!askedMic) {
             askedMic = true
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                micPerm.launch(Manifest.permission.RECORD_AUDIO)
-            } else {
-                vm.ensureEngine(context)
+            val missing = neededPerms().filter {
+                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
             }
+            if (missing.isEmpty()) vm.ensureEngine(context)
+            else permLauncher.launch(missing.toTypedArray())
         }
     }
 
@@ -219,13 +229,20 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
                     }
                     }
                     Button(onClick = {
-                        if (ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.RECORD_AUDIO,
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            micPerm.launch(Manifest.permission.RECORD_AUDIO)
-                        } else {
-                            context.startForegroundService(
+                        val missing = neededPerms().filter {
+                            ContextCompat.checkSelfPermission(context, it) !=
+                                PackageManager.PERMISSION_GRANTED
+                        }
+                        when {
+                            missing.isNotEmpty() -> permLauncher.launch(missing.toTypedArray())
+                            !modelsReady || !engineOk -> {
+                                Toast.makeText(
+                                    context, "Voice not ready yet — download models first",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                                vm.ensureEngine(context)
+                            }
+                            else -> context.startForegroundService(
                                 Intent(context, VoiceService::class.java)
                                     .setAction(VoiceService.ACTION_LISTEN_ONCE),
                             )

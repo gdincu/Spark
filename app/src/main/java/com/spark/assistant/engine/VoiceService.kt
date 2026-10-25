@@ -14,6 +14,7 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,7 @@ import kotlinx.coroutines.launch
 class VoiceService : Service() {
 
     companion object {
+        private const val TAG = "SparkSvc"
         const val CHANNEL_ID = "spark_voice"
         const val NOTIF_ID = 2001
         const val ACTION_START = "com.spark.assistant.LISTEN"
@@ -71,6 +73,12 @@ class VoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Foreground FIRST: any startForegroundService() caller (activity,
+        // assistant trampoline, notification action) gives the system only
+        // seconds to see startForeground(), or the app is killed with
+        // ForegroundServiceDidNotStartInTimeException. Readiness is checked
+        // after, and reported via the notification.
+        startForeground(NOTIF_ID, notification("Spark voice"))
         when (intent?.action) {
             ACTION_STOP -> {
                 stopVoice()
@@ -79,25 +87,26 @@ class VoiceService : Service() {
             }
             ACTION_LISTEN_ONCE, ACTION_START -> {
                 if (!ModelManager.modelsReady(this)) {
-                    notify("Voice models not ready — open Spark once to download")
+                    Log.d(TAG, "listen refused: models missing")
+                    updateForeground("Voice models not ready — open Spark once to download")
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                if (!NeedleBridge.nativeAvailable) {
+                    Log.d(TAG, "listen refused: engine not loaded")
+                    updateForeground("Voice engine unavailable on this device/ABI")
                     stopSelf()
                     return START_NOT_STICKY
                 }
                 armWindow()
-                if (!running) {
-                    if (!NeedleBridge.nativeAvailable) {
-                        notify("Voice engine unavailable on this device/ABI")
-                        stopSelf()
-                        return START_NOT_STICKY
-                    }
-                    startForeground(NOTIF_ID, notification("Listening… speak now 🎤"))
-                    startVoice()
-                } else {
-                    notify("Listening… speak now 🎤")
-                }
+                updateForeground("Listening… speak now 🎤")
+                if (!running) startVoice()
                 return START_STICKY
             }
-            else -> return START_NOT_STICKY
+            else -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
         }
     }
 
@@ -345,5 +354,11 @@ class VoiceService : Service() {
     private fun notify(text: String) {
         val mgr = getSystemService(NotificationManager::class.java)
         mgr.notify(NOTIF_ID + 1, notification(text))
+    }
+
+    /** Update the foreground notification in place (service is already foregrounded). */
+    private fun updateForeground(text: String) {
+        val mgr = getSystemService(NotificationManager::class.java)
+        mgr.notify(NOTIF_ID, notification(text))
     }
 }
