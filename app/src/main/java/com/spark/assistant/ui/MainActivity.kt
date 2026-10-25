@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -155,12 +156,16 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
     val roleLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        isDefault = AssistantSetup.isDefaultAssistant(context)
+        val def = AssistantSetup.isDefaultAssistant(context)
+        Log.d("SparkUI", "role request returned: isDefaultAssistant=$def")
+        isDefault = def
     }
 
     LaunchedEffect(Unit) {
         isDefault = AssistantSetup.isDefaultAssistant(context)
         modelsReady = ModelManager.modelsReady(context)
+        Log.d("SparkUI", "onLaunch: roleAvailable=${AssistantSetup.isRoleAvailable(context)} " +
+            "isDefault=$isDefault modelsReady=$modelsReady")
         vm.refresh(context)
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED
@@ -198,14 +203,18 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { vm.download(context) }) { Text("Download models") }
-                        OutlinedButton(onClick = {
-                            AssistantSetup.createRequestIntent(context)?.let {
-                                roleLauncher.launch(it)
-                            } ?: Toast.makeText(
-                                context, "Assistant role not available on this device",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                        }) { Text("Set as assistant") }
+                    OutlinedButton(onClick = {
+                        val available = AssistantSetup.isRoleAvailable(context)
+                        val intent = AssistantSetup.createRequestIntent(context)
+                        Log.d("SparkUI", "set-as-assistant tapped: roleAvailable=$available " +
+                            "requestIntentNull=${intent == null}")
+                        intent?.let {
+                            roleLauncher.launch(it)
+                        } ?: Toast.makeText(
+                            context, "Assistant role not available on this device",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }) { Text("Set as assistant") }
                     }
                     Button(onClick = {
                         if (ContextCompat.checkSelfPermission(
