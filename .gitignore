@@ -1,0 +1,8 @@
+*.cact
+*.part
+/build/
+/app/build/
+/app/engine/
+/local.properties
+keystore.properties
+.google/

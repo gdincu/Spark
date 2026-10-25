@@ -1,0 +1,63 @@
+{
+  "tools": [
+    {
+      "name": "open_app",
+      "description": "Open / launch an installed app by name. Use for 'open X', 'launch X', 'start X'.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "app": { "type": "string", "description": "App name or mapped keyword, e.g. calculator, settings" }
+        },
+        "required": ["app"]
+      },
+      "triggers": ["\\bopen\\b.*", "\\blaunch\\b.*", "\\bstart\\b.*\\b(app|application)\\b.*"]
+    },
+    {
+      "name": "play_media",
+      "description": "Play a song, artist, album, video or station, optionally in a mapped app. Use for 'play X', 'put on X', 'play X on Y'.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "What to play, e.g. Bohemian Rhapsody" },
+          "app": { "type": "string", "description": "Mapped app keyword, e.g. tune. Omit to use the default player." }
+        },
+        "required": ["query"]
+      },
+      "triggers": ["\\bplay\\b.*", "\\bput on\\b.*", "\\blisten to\\b.*"]
+    },
+    {
+      "name": "pause_playback",
+      "description": "Pause the current playback. Use for 'pause', 'pause the music'.",
+      "parameters": { "type": "object", "properties": {} },
+      "triggers": ["\\bpause\\b.*", "\\bstop\\b.*\\b(music|song|playback|video)\\b.*"]
+    },
+    {
+      "name": "resume_playback",
+      "description": "Resume paused playback. Use for 'resume', 'continue playing'.",
+      "parameters": { "type": "object", "properties": {} },
+      "triggers": ["\\bresume\\b.*", "\\bcontinue\\b.*", "\\bunpause\\b.*", "\\bplay\\b\\s*$"]
+    },
+    {
+      "name": "next_track",
+      "description": "Skip to the next track. Use for 'next', 'next song', 'skip'.",
+      "parameters": { "type": "object", "properties": {} },
+      "triggers": ["\\bnext\\b.*", "\\bskip\\b.*"]
+    },
+    {
+      "name": "previous_track",
+      "description": "Go back to the previous track. Use for 'previous', 'go back'.",
+      "parameters": { "type": "object", "properties": {} },
+      "triggers": ["\\bprevious\\b.*", "\\bback\\b.*", "\\blast song\\b.*"]
+    },
+    {
+      "name": "set_volume",
+      "description": "Set playback volume 0-100. Use for 'volume to 50', 'louder'.",
+      "parameters": {
+        "type": "object",
+        "properties": { "level": { "type": "integer", "minimum": 0, "maximum": 100 } },
+        "required": ["level"]
+      },
+      "triggers": ["\\bvolume\\b.*", "\\blouder\\b.*", "\\bquieter\\b.*"]
+    }
+  ]
+}

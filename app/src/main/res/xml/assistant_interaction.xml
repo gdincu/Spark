@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Advertises Spark as a voice interaction (assistant) app. The system
+     reads this to list Spark under Default apps → Digital assistant, and
+     routes push-to-talk (headset / steering-wheel button) to
+     SparkAssistantService. -->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.spark.assistant.assistant.SparkAssistantSessionService"
+    android:supportsAssist="true" />

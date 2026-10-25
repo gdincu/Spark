@@ -1,0 +1,75 @@
+name: android
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Works with GitHub's default read-only GITHUB_TOKEN: checkout needs
+# contents:read, upload-artifact needs actions:write. No secrets required
+# (debug build; all dependencies are public).
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build-apk:
+    name: Build debug APK (Spark, arm64-v8a)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No separate wrapper-validation step: gradle/actions/setup-gradle@v4
+      # already validates gradle-wrapper.jar checksums automatically.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
+          P="$ANDROID_HOME/platforms"
+          [ -d "$P" ] || P="$ANDROID_SDK_ROOT/platforms"
+          if [ ! -d "$P/android-37" ] && [ -d "$P/android-37.0" ]; then
+            ln -s android-37.0 "$P/android-37"
+            echo "Linked android-37 -> android-37.0"
+          fi
+
+      - name: Validate tool schemas JSON
+        run: python3 -c "import json; t=json.load(open('app/src/main/assets/spark_tools.json')); print(len(t['tools']), 'tools OK')"
+
+      - name: Fetch Cactus native engine (arm64-v8a only)
+        run: |
+          pip install cactus-needle
+          rm -rf /tmp/eng && needle download android-arm64 --out /tmp/eng
+          mkdir -p "app/engine/android-arm64"
+          cp "$(find /tmp/eng -name libneedle.a | head -1)" "app/engine/android-arm64/"
+          cp "$(find /tmp/eng -name needle.h | head -1)" "app/engine/android-arm64/"
+          find app/engine -type f
+
+      - name: Verify model URLs reachable
+        run: |
+          curl -fs -r 0-0 -o /dev/null https://huggingface.co/Cactus-Compute/whistle/resolve/main/whistle.cact
+          curl -fs -r 0-0 -o /dev/null https://huggingface.co/Cactus-Compute/needle3/resolve/main/needle3.cact
+
+      - name: Make gradlew executable (Windows checkouts lose +x)
+        run: chmod +x gradlew
+
+      - name: Verify staged native engine (must exist before CMake configure)
+        run: |
+          ls -la app/engine/android-arm64/
+          test -f app/engine/android-arm64/libneedle.a
+
+      - name: Assemble debug APK (arm64-v8a)
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spark-debug
+          path: app/build/outputs/apk/debug/*.apk
