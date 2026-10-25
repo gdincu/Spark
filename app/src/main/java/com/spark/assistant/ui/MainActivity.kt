@@ -1,12 +1,10 @@
 package com.spark.assistant.ui
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -147,7 +145,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun SparkScreen(vm: MainViewModel = viewModel()) {
     val context = LocalContext.current
-    val activity = context as? Activity
     val scope = rememberCoroutineScope()
     val mappings by vm.mappings.collectAsState()
     val progress by vm.downloadProgress.collectAsState()
@@ -166,13 +163,6 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
         if (granted) vm.ensureEngine(context) else {
             Toast.makeText(context, "Microphone permission required", Toast.LENGTH_LONG).show()
         }
-    }
-    val roleLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        val def = AssistantSetup.isDefaultAssistant(context)
-        Log.d("SparkUI", "role request returned: isDefaultAssistant=$def")
-        isDefault = def
     }
 
     LaunchedEffect(resumeTick) {
@@ -220,35 +210,13 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { vm.download(context) }) { Text("Download models") }
-                    OutlinedButton(onClick = {
-                        val available = AssistantSetup.isRoleAvailable(context)
-                        val intent = AssistantSetup.createRequestIntent(context)
-                        Log.d("SparkUI", "set-as-assistant tapped: roleAvailable=$available " +
-                            "requestIntentNull=${intent == null}")
-                        intent?.let {
-                            roleLauncher.launch(it)
-                        } ?: Toast.makeText(
-                            context, "Assistant role not available on this device",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }) { Text("Set as assistant") }
-                    OutlinedButton(onClick = {
-                        // Reliable path: the exact Default-apps screen where
-                        // Spark can be picked manually (some devices instantly
-                        // cancel the role-request dialog above).
-                        Log.d("SparkUI", "opening system Default-apps settings")
-                        try {
-                            context.startActivity(
-                                Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
-                        } catch (_: Exception) {
-                            context.startActivity(
-                                Intent(Settings.ACTION_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
-                        }
-                    }) { Text("System settings") }
+                    if (!isDefault) {
+                        Text(
+                            "To enable: system Settings → Apps → Default apps → " +
+                                "Digital assistant app → Spark.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     }
                     Button(onClick = {
                         if (ContextCompat.checkSelfPermission(
@@ -342,7 +310,6 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
             },
         )
     }
-    activity?.let { } // keep activity reference for lint (role flow uses launcher)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

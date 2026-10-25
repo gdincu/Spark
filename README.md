@@ -73,8 +73,8 @@ No keystore needed for debug. For a signed release, add a
 ## How it works on device
 
 1. First launch → grant mic → **Download voice models** once (~45 MB).
-2. **Set Spark as digital assistant** → confirm in system Settings →
-   Apps → Default apps if asked.
+2. System **Settings → Apps → Default apps → Digital assistant app → Spark**
+   (manual step — the app shows whether Spark is default in its Status card).
 3. Settings → **Action mappings** → add e.g. keyword `tune` →
    your music player + play/search support; or `tube` →
    YouTube. Say *"Hey Spark, play Bohemian Rhapsody on tune"* or press
