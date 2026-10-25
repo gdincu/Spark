@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -40,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -119,6 +121,16 @@ class MainViewModel : ViewModel() {
 }
 
 class MainActivity : ComponentActivity() {
+    /** Bumped on every onResume so the UI re-checks role/default state
+     * when returning from system Settings. */
+    var resumedTick by mutableIntStateOf(0)
+        private set
+
+    override fun onResume() {
+        super.onResume()
+        resumedTick++
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -145,6 +157,8 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
     var showAdd by remember { mutableStateOf(false) }
     var testPhrase by remember { mutableStateOf("hey spark play Bohemian Rhapsody") }
     var testResult by remember { mutableStateOf("") }
+    var askedMic by remember { mutableStateOf(false) }
+    val resumeTick = (context as? MainActivity)?.resumedTick ?: 0
 
     val micPerm = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -161,18 +175,21 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
         isDefault = def
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resumeTick) {
         isDefault = AssistantSetup.isDefaultAssistant(context)
         modelsReady = ModelManager.modelsReady(context)
-        Log.d("SparkUI", "onLaunch: roleAvailable=${AssistantSetup.isRoleAvailable(context)} " +
+        Log.d("SparkUI", "onLaunch/resume: roleAvailable=${AssistantSetup.isRoleAvailable(context)} " +
             "isDefault=$isDefault modelsReady=$modelsReady")
         vm.refresh(context)
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            micPerm.launch(Manifest.permission.RECORD_AUDIO)
-        } else {
-            vm.ensureEngine(context)
+        if (!askedMic) {
+            askedMic = true
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                micPerm.launch(Manifest.permission.RECORD_AUDIO)
+            } else {
+                vm.ensureEngine(context)
+            }
         }
     }
 
@@ -215,6 +232,23 @@ private fun SparkScreen(vm: MainViewModel = viewModel()) {
                             Toast.LENGTH_LONG,
                         ).show()
                     }) { Text("Set as assistant") }
+                    OutlinedButton(onClick = {
+                        // Reliable path: the exact Default-apps screen where
+                        // Spark can be picked manually (some devices instantly
+                        // cancel the role-request dialog above).
+                        Log.d("SparkUI", "opening system Default-apps settings")
+                        try {
+                            context.startActivity(
+                                Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        } catch (_: Exception) {
+                            context.startActivity(
+                                Intent(Settings.ACTION_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    }) { Text("System settings") }
                     }
                     Button(onClick = {
                         if (ContextCompat.checkSelfPermission(
