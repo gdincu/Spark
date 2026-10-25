@@ -92,6 +92,19 @@ class VoiceService : Service() {
                     stopSelf()
                     return START_NOT_STICKY
                 }
+                // Cold-process safe: nativeAvailable is in-memory only, so a
+                // fresh process (assistant button, reboot) must (re)load the
+                // engine here instead of trusting the flag.
+                if (!NeedleBridge.nativeAvailable) {
+                    Log.d(TAG, "engine not loaded, attempting load")
+                    try {
+                        val tools = applicationContext.assets.open("spark_tools.json")
+                            .bufferedReader().readText()
+                        ModelManager.ensureLoaded(applicationContext, tools)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "engine load failed", e)
+                    }
+                }
                 if (!NeedleBridge.nativeAvailable) {
                     Log.d(TAG, "listen refused: engine not loaded")
                     updateForeground("Voice engine unavailable on this device/ABI")

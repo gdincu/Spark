@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
 import com.spark.assistant.engine.ModelManager
-import com.spark.assistant.engine.NeedleBridge
 import com.spark.assistant.engine.VoiceService
 import com.spark.assistant.ui.MainActivity
 
@@ -16,7 +15,9 @@ import com.spark.assistant.ui.MainActivity
  * Runs in the foreground when started, so handing off to the voice
  * foreground service is always allowed here (unlike from the session alone).
  *
- * - Models + mic ready → fires ACTION_LISTEN_ONCE and finishes.
+ * - Models on disk + mic ready → fires ACTION_LISTEN_ONCE and finishes.
+ *   VoiceService (re)loads the engine itself, so this also works from a
+ *   cold process (assistant button after reboot / app kill).
  * - Otherwise → opens the app so the user completes setup once
  *   (downloads the ~45 MB models), then finishes.
  */
@@ -25,7 +26,7 @@ class AssistantListenActivity : Activity() {
         super.onCreate(savedInstanceState)
         val micOk = checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
-        if (micOk && ModelManager.modelsReady(this) && NeedleBridge.nativeAvailable) {
+        if (micOk && ModelManager.modelsReady(this)) {
             startForegroundService(
                 Intent(this, VoiceService::class.java)
                     .setAction(VoiceService.ACTION_LISTEN_ONCE),
